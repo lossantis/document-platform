@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: document-api-postgres
+    environment:
+      POSTGRES_DB: documentdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - 5432:5432
+    volumes:
+      - document-api-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  document-api-postgres-data:
