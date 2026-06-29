@@ -7,9 +7,22 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - 5432:5432
+      - "5432:5432"
     volumes:
       - document-api-postgres-data:/var/lib/postgresql/data
+
+  document-api:
+    build:
+      context: ./document-api
+    container_name: document-api
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: ${DOCUMENT_API_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${DOCUMENT_API_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DOCUMENT_API_DATASOURCE_PASSWORD}
+    depends_on:
+      - postgres
 
 volumes:
   document-api-postgres-data:
