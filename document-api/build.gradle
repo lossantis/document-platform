@@ -28,6 +28,9 @@ dependencies {
 
     runtimeOnly 'org.postgresql:postgresql'
 
+    implementation platform('software.amazon.awssdk:bom:2.30.31')
+    implementation 'software.amazon.awssdk:s3'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

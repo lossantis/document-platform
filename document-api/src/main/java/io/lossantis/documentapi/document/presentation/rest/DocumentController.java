@@ -1,11 +1,15 @@
 package io.lossantis.documentapi.document.presentation.rest;
 
+
 import io.lossantis.documentapi.document.application.command.UploadDocumentCommand;
-import io.lossantis.documentapi.document.application.result.UploadDocumentResult;
+import io.lossantis.documentapi.document.application.UploadDocumentResult;
 import io.lossantis.documentapi.document.application.usecase.UploadDocumentUseCase;
-import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/documents")
@@ -17,17 +21,21 @@ public class DocumentController {
         this.uploadDocumentUseCase = uploadDocumentUseCase;
     }
 
-    @PostMapping(
-            value = "/upload",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public UploadDocumentResult upload(@RequestParam("file") MultipartFile file) {
+    @PostMapping("/upload")
+    public ResponseEntity<UploadDocumentResult> upload(@RequestParam("file") MultipartFile file)
+            throws IOException {
+
         UploadDocumentCommand command = new UploadDocumentCommand(
                 file.getOriginalFilename(),
                 file.getContentType(),
-                file.getSize()
+                file.getSize(),
+                file.getInputStream()
         );
 
-        return uploadDocumentUseCase.execute(command);
+        UploadDocumentResult result = uploadDocumentUseCase.execute(command);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(result);
     }
 }

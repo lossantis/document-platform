@@ -15,9 +15,33 @@ public class JpaDocumentRepositoryAdapter implements DocumentRepository {
 
     @Override
     public Document save(Document document) {
-        DocumentJpaEntity entity = DocumentJpaEntity.fromDomain(document);
+        DocumentJpaEntity entity = toEntity(document);
         DocumentJpaEntity savedEntity = springDataDocumentRepository.save(entity);
 
-        return savedEntity.toDomain();
+        return toDomain(savedEntity);
+    }
+
+    private DocumentJpaEntity toEntity(Document document) {
+        return new DocumentJpaEntity(
+                document.getId(),
+                document.getOriginalFilename(),
+                document.getContentType(),
+                document.getSize(),
+                document.getStatus(),
+                document.getStorageKey(),
+                document.getCreatedAt()
+        );
+    }
+
+    private Document toDomain(DocumentJpaEntity entity) {
+        return Document.restore(
+                entity.getId(),
+                entity.getOriginalFilename(),
+                entity.getContentType(),
+                entity.getSize(),
+                entity.getStatus(),
+                entity.getStorageKey(),
+                entity.getCreatedAt()
+        );
     }
 }

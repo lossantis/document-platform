@@ -10,14 +10,16 @@ public class Document {
     private final String contentType;
     private final long size;
     private final DocumentStatus status;
+    private final String storageKey;
     private final Instant createdAt;
 
-    public Document(
+    private Document(
             UUID id,
             String originalFilename,
             String contentType,
             long size,
             DocumentStatus status,
+            String storageKey,
             Instant createdAt
     ) {
         this.id = id;
@@ -25,17 +27,44 @@ public class Document {
         this.contentType = contentType;
         this.size = size;
         this.status = status;
+        this.storageKey = storageKey;
         this.createdAt = createdAt;
     }
 
-    public static Document upload(String originalFilename, String contentType, long size) {
+    public static Document upload(
+            String originalFilename,
+            String contentType,
+            long size,
+            String storageKey
+    ) {
         return new Document(
                 UUID.randomUUID(),
                 originalFilename,
                 contentType,
                 size,
                 DocumentStatus.UPLOADED,
+                storageKey,
                 Instant.now()
+        );
+    }
+
+    public static Document restore(
+            UUID id,
+            String originalFilename,
+            String contentType,
+            long size,
+            DocumentStatus status,
+            String storageKey,
+            Instant createdAt
+    ) {
+        return new Document(
+                id,
+                originalFilename,
+                contentType,
+                size,
+                status,
+                storageKey,
+                createdAt
         );
     }
 
@@ -57,6 +86,10 @@ public class Document {
 
     public DocumentStatus getStatus() {
         return status;
+    }
+
+    public String getStorageKey() {
+        return storageKey;
     }
 
     public Instant getCreatedAt() {

@@ -1,6 +1,5 @@
 package io.lossantis.documentapi.document.infrastructure.persistence;
 
-import io.lossantis.documentapi.document.domain.model.Document;
 import io.lossantis.documentapi.document.domain.model.DocumentStatus;
 import jakarta.persistence.*;
 
@@ -12,7 +11,6 @@ import java.util.UUID;
 public class DocumentJpaEntity {
 
     @Id
-    @Column(name = "id", nullable = false)
     private UUID id;
 
     @Column(name = "original_filename", nullable = false)
@@ -21,12 +19,15 @@ public class DocumentJpaEntity {
     @Column(name = "content_type", nullable = false)
     private String contentType;
 
-    @Column(name = "size", nullable = false)
+    @Column(nullable = false)
     private long size;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(nullable = false)
     private DocumentStatus status;
+
+    @Column(name = "storage_key")
+    private String storageKey;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -40,6 +41,7 @@ public class DocumentJpaEntity {
             String contentType,
             long size,
             DocumentStatus status,
+            String storageKey,
             Instant createdAt
     ) {
         this.id = id;
@@ -47,28 +49,35 @@ public class DocumentJpaEntity {
         this.contentType = contentType;
         this.size = size;
         this.status = status;
+        this.storageKey = storageKey;
         this.createdAt = createdAt;
     }
 
-    public static DocumentJpaEntity fromDomain(Document document) {
-        return new DocumentJpaEntity(
-                document.getId(),
-                document.getOriginalFilename(),
-                document.getContentType(),
-                document.getSize(),
-                document.getStatus(),
-                document.getCreatedAt()
-        );
+    public UUID getId() {
+        return id;
     }
 
-    public Document toDomain() {
-        return new Document(
-                id,
-                originalFilename,
-                contentType,
-                size,
-                status,
-                createdAt
-        );
+    public String getOriginalFilename() {
+        return originalFilename;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public long getSize() {
+        return size;
+    }
+
+    public DocumentStatus getStatus() {
+        return status;
+    }
+
+    public String getStorageKey() {
+        return storageKey;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 }

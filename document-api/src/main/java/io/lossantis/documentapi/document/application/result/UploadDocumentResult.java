@@ -1,5 +1,6 @@
-package io.lossantis.documentapi.document.application.result;
+package io.lossantis.documentapi.document.application;
 
+import io.lossantis.documentapi.document.domain.model.Document;
 import io.lossantis.documentapi.document.domain.model.DocumentStatus;
 
 import java.time.Instant;
@@ -11,6 +12,19 @@ public record UploadDocumentResult(
         String contentType,
         long size,
         DocumentStatus status,
+        String storageKey,
         Instant createdAt
 ) {
+
+    public static UploadDocumentResult from(Document document) {
+        return new UploadDocumentResult(
+                document.getId(),
+                document.getOriginalFilename(),
+                document.getContentType(),
+                document.getSize(),
+                document.getStatus(),
+                document.getStorageKey(),
+                document.getCreatedAt()
+        );
+    }
 }
