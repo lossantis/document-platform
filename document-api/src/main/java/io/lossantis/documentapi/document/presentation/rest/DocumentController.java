@@ -2,7 +2,7 @@ package io.lossantis.documentapi.document.presentation.rest;
 
 
 import io.lossantis.documentapi.document.application.command.UploadDocumentCommand;
-import io.lossantis.documentapi.document.application.UploadDocumentResult;
+import io.lossantis.documentapi.document.application.result.UploadDocumentResult;
 import io.lossantis.documentapi.document.application.usecase.UploadDocumentUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

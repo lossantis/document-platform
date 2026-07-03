@@ -1,4 +1,4 @@
-package io.lossantis.documentapi.document.application;
+package io.lossantis.documentapi.document.application.result;
 
 import io.lossantis.documentapi.document.domain.model.Document;
 import io.lossantis.documentapi.document.domain.model.DocumentStatus;

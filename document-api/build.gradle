@@ -28,6 +28,8 @@ dependencies {
 
     runtimeOnly 'org.postgresql:postgresql'
 
+    implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
     implementation platform('software.amazon.awssdk:bom:2.30.31')
     implementation 'software.amazon.awssdk:s3'
 
