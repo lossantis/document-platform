@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - document-api-postgres-data:/var/lib/postgresql/data
+
   kafka:
     image: apache/kafka:4.1.2
     container_name: document-kafka
@@ -31,6 +32,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
   document-api:
     build:
       context: ./document-api
@@ -49,6 +51,13 @@ services:
       MAGALU_OBJECT_STORAGE_SECRET_KEY: ${MAGALU_OBJECT_STORAGE_SECRET_KEY}
     depends_on:
       - postgres
+      - kafka
+
+  document-processor:
+    build:
+      context: ./document-processor
+    container_name: document-processor
+    depends_on:
       - kafka
 
 volumes:
