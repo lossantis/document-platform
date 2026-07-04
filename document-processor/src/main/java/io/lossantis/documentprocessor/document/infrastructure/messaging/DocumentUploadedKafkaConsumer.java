@@ -2,13 +2,24 @@ package io.lossantis.documentprocessor.document.infrastructure.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lossantis.documentprocessor.document.application.ProcessDocumentCommand;
+import io.lossantis.documentprocessor.document.application.ProcessDocumentUseCase;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DocumentUploadedKafkaConsumer {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
+    private final ProcessDocumentUseCase processDocumentUseCase;
+
+    public DocumentUploadedKafkaConsumer(
+            ObjectMapper objectMapper,
+            ProcessDocumentUseCase processDocumentUseCase
+    ) {
+        this.objectMapper = objectMapper;
+        this.processDocumentUseCase = processDocumentUseCase;
+    }
 
     @KafkaListener(
             topics = "${app.kafka.topics.document-uploaded}",
@@ -21,13 +32,13 @@ public class DocumentUploadedKafkaConsumer {
                 DocumentUploadedEvent.class
         );
 
-        System.out.println("========================================");
-        System.out.println("DocumentUploaded received");
-        System.out.println("eventId:     " + event.eventId());
-        System.out.println("documentId:  " + event.documentId());
-        System.out.println("storageKey:  " + event.storageKey());
-        System.out.println("contentType: " + event.contentType());
-        System.out.println("size:        " + event.size());
-        System.out.println("========================================");
+        ProcessDocumentCommand command = new ProcessDocumentCommand(
+                event.documentId(),
+                event.storageKey(),
+                event.contentType(),
+                event.size()
+        );
+
+        processDocumentUseCase.execute(command);
     }
 }
