@@ -1,5 +1,6 @@
 package io.lossantis.documentprocessor.document.application;
 
+import io.lossantis.documentprocessor.document.application.messaging.DocumentProcessedPublisher;
 import io.lossantis.documentprocessor.document.application.storage.DocumentStorage;
 import io.lossantis.documentprocessor.document.domain.ProcessedText;
 import io.lossantis.documentprocessor.document.domain.TextDocumentProcessor;
@@ -11,12 +12,15 @@ import java.nio.charset.StandardCharsets;
 public class ProcessDocumentUseCase {
 
     private final DocumentStorage documentStorage;
+    private final DocumentProcessedPublisher documentProcessedPublisher;
     private final TextDocumentProcessor textDocumentProcessor;
 
     public ProcessDocumentUseCase(
-            DocumentStorage documentStorage
+            DocumentStorage documentStorage,
+            DocumentProcessedPublisher documentProcessedPublisher
     ) {
         this.documentStorage = documentStorage;
+        this.documentProcessedPublisher = documentProcessedPublisher;
         this.textDocumentProcessor = new TextDocumentProcessor();
     }
 
@@ -34,6 +38,11 @@ public class ProcessDocumentUseCase {
         ProcessedText result =
                 textDocumentProcessor.process(text);
 
+        documentProcessedPublisher.publish(
+                command.documentId(),
+                result
+        );
+
         System.out.println("========================================");
         System.out.println("Document processed");
         System.out.println("documentId: " + command.documentId());
@@ -44,6 +53,8 @@ public class ProcessDocumentUseCase {
         System.out.println("characterCount: " + result.characterCount());
         System.out.println("wordCount: " + result.wordCount());
         System.out.println("lineCount: " + result.lineCount());
+        System.out.println("----------------------------------------");
+        System.out.println("DocumentProcessed published");
         System.out.println("========================================");
     }
 }
