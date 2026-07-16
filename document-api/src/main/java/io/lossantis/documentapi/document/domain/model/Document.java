@@ -68,6 +68,18 @@ public class Document {
         );
     }
 
+    public Document markAsProcessed() {
+        return new Document(
+                this.id,
+                this.originalFilename,
+                this.contentType,
+                this.size,
+                DocumentStatus.PROCESSED,
+                this.storageKey,
+                this.createdAt
+        );
+    }
+
     public UUID getId() {
         return id;
     }

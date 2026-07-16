@@ -2,98 +2,98 @@
 
 A study project for building an event-driven document upload and processing platform with Java, Spring Boot, Apache Kafka, PostgreSQL, Flyway, Docker, Domain-Driven Design (DDD), Clean Architecture principles, and Magalu Cloud Object Storage.
 
-The project currently contains two independent microservices:
-
-- `document-api`: receives document uploads, stores files in Magalu Cloud Object Storage, persists metadata in PostgreSQL, and publishes a `DocumentUploaded` event to Kafka.
-- `document-processor`: consumes `DocumentUploaded` events from Kafka as part of the asynchronous document processing pipeline.
-
-The current milestone completes the first end-to-end asynchronous communication between the two services.
+The project is intentionally developed in small phases. Each phase introduces one new architectural concept only when the project needs it.
 
 ---
 
 ## Current Status
 
-The project currently supports:
-
-- Monorepo structure
-- Two independent Spring Boot microservices
-- `document-api`
-- `document-processor`
-- REST API for multipart document upload
-- PostgreSQL
-- Flyway database migrations
-- JPA/Hibernate
-- Magalu Cloud Object Storage
-- AWS SDK for Java 2.x
-- S3-compatible endpoint configuration
-- Private document storage
-- Apache Kafka
-- `DocumentUploaded` event publishing
-- Kafka consumer groups
-- `DocumentUploaded` event consumption
-- JSON event deserialization
-- Docker and Docker Compose
-- DDD/Clean Architecture-inspired package structure
-
-The current asynchronous flow is:
+The project currently contains two independent microservices:
 
 ```text
-document-api
-    |
-    | publishes DocumentUploaded
-    v
-Kafka
-    |
-    | topic: document.uploaded.v1
-    v
-document-processor
-    |
-    | deserializes the event
-    v
-Application logs
+document-platform
+├── document-api
+└── document-processor
 ```
 
-The `document-processor` does not yet download or process the document. That will be added progressively in the next steps.
+### `document-api`
+
+Responsible for:
+
+- receiving document uploads through HTTP;
+- uploading original files to Magalu Cloud Object Storage;
+- saving document metadata in PostgreSQL;
+- publishing `DocumentUploaded` events to Kafka;
+- consuming `DocumentProcessed` events from Kafka;
+- updating document status in PostgreSQL.
+
+### `document-processor`
+
+Responsible for:
+
+- consuming `DocumentUploaded` events from Kafka;
+- downloading uploaded files from Magalu Cloud Object Storage;
+- processing `.txt` files;
+- generating text processing statistics;
+- publishing `DocumentProcessed` events to Kafka.
+
+The processor does **not** access PostgreSQL and does **not** call `document-api` through HTTP.
 
 ---
 
-## Architecture
+## Current Architecture
 
 ```text
-                            CLIENT
-                              |
-                              | POST /documents/upload
-                              v
-+-------------------------------------------------------------+
-|                        document-api                         |
-|                                                             |
-|  1. Receives multipart file                                 |
-|  2. Generates a storage key                                 |
-|  3. Uploads file to Object Storage                          |
-|  4. Persists document metadata in PostgreSQL                |
-|  5. Publishes DocumentUploaded                              |
-+-----------------------------+-------------------------------+
-                              |
-                              | document.uploaded.v1
-                              v
-                    +-------------------+
-                    |       Kafka       |
-                    +---------+---------+
-                              |
-                              | Consumer group:
-                              | document-processor
-                              v
-+-------------------------------------------------------------+
-|                    document-processor                       |
-|                                                             |
-|  1. Consumes DocumentUploaded                               |
-|  2. Receives the message as JSON                            |
-|  3. Deserializes it into DocumentUploadedEvent              |
-|  4. Logs the event data                                     |
-+-------------------------------------------------------------+
+Client
+  |
+  | POST /documents/upload
+  v
++------------------------------+
+| document-api                 |
+|                              |
+| - receives multipart file    |
+| - uploads to Object Storage  |
+| - saves metadata             |
+| - publishes DocumentUploaded |
++--------------+---------------+
+               |
+               | document.uploaded.v1
+               v
+            +-------+
+            | Kafka |
+            +---+---+
+                |
+                v
++-------------------------------+
+| document-processor            |
+|                               |
+| - consumes DocumentUploaded   |
+| - downloads file by storageKey|
+| - processes text              |
+| - publishes DocumentProcessed |
++---------------+---------------+
+                |
+                | document.processed.v1
+                v
+            +-------+
+            | Kafka |
+            +---+---+
+                |
+                v
++-------------------------------+
+| document-api                  |
+|                               |
+| - consumes DocumentProcessed  |
+| - updates PostgreSQL          |
+| - marks document as PROCESSED |
++-------------------------------+
 ```
 
-The target event-driven flow is:
+---
+
+## Implemented Flow
+
+The intended asynchronous flow is now:
 
 ```text
 document-api
@@ -116,231 +116,117 @@ document-api
 PostgreSQL
 ```
 
-This architecture is being built incrementally to explore:
+This allows the services to remain independent:
 
-- Kafka consumers
-- Consumer groups
-- Event-driven communication
-- Idempotency
-- Retry strategies
-- Dead-letter topics
-- Eventual consistency
-- Outbox pattern
+```text
+document-api owns PostgreSQL
+document-processor owns processing
+Kafka connects both services asynchronously
+Object Storage stores the original files
+```
 
 ---
 
-## Microservices
+## Technologies
 
-### `document-api`
-
-Responsibilities:
-
-- Expose the document upload HTTP endpoint
-- Receive multipart files
-- Generate unique storage keys
-- Upload files to Magalu Cloud Object Storage
-- Persist document metadata in PostgreSQL
-- Publish `DocumentUploaded` events to Kafka
-
-The `document-api` owns the document metadata database and is the only service that currently accesses PostgreSQL.
-
-### `document-processor`
-
-Current responsibilities:
-
-- Connect to Kafka
-- Join the `document-processor` consumer group
-- Consume messages from `document.uploaded.v1`
-- Deserialize JSON into `DocumentUploadedEvent`
-- Log the received event
-
-The `document-processor` currently does **not**:
-
-- Access PostgreSQL
-- Access the `document-api` database
-- Download files from Object Storage
-- Process `.txt` files
-- Publish `DocumentProcessed`
-
-Those responsibilities will be introduced in the next phases.
+```text
+Java 25
+Spring Boot 4.1
+Spring Web MVC
+Spring Data JPA
+Spring Kafka
+Apache Kafka 4.1
+PostgreSQL 16
+Flyway
+AWS SDK for Java 2.x
+Magalu Cloud Object Storage
+Docker
+Docker Compose
+Gradle 9
+Jackson
+```
 
 ---
 
-## Service Independence
+## Docker Compose Services
 
-The two microservices are independent applications.
-
-```text
-document-api
-├── own Gradle project
-├── own Dockerfile
-├── own Spring Boot application
-└── owns PostgreSQL document metadata
-
-document-processor
-├── own Gradle project
-├── own Dockerfile
-├── own Spring Boot application
-└── no database dependency
-```
-
-The `document-processor` does not depend on the `document-api` Java project.
-
-The services communicate through Kafka events rather than direct Java dependencies or shared database access.
+The local environment runs:
 
 ```text
-document-api
-    |
-    | JSON event
-    v
-Kafka
-    |
-    | JSON event
-    v
-document-processor
+Docker Compose
+├── document-api
+├── document-processor
+├── document-kafka
+└── document-api-postgres
 ```
 
-The contract between the services is the event payload, not a shared Java class.
+`document-api` exposes:
+
+```text
+http://localhost:8080
+```
+
+Kafka is reachable inside Docker as:
+
+```text
+kafka:9092
+```
+
+PostgreSQL is reachable inside Docker as:
+
+```text
+postgres:5432
+```
 
 ---
 
-## Current Upload and Event Flow
+## Event Topics
 
-```text
-POST /documents/upload
-        |
-        v
-DocumentController
-        |
-        v
-UploadDocumentCommand
-        |
-        v
-UploadDocumentUseCase
-        |
-        +-----------------------------+
-        |                             |
-        v                             v
-DocumentStorage                 DocumentRepository
-        |                             |
-        v                             v
-MagaluDocumentStorage       JpaDocumentRepositoryAdapter
-        |                             |
-        v                             v
-Magalu Cloud Object Storage      PostgreSQL
-        |
-        v
-DocumentUploadedPublisher
-        |
-        v
-KafkaDocumentUploadedPublisher
-        |
-        v
-document.uploaded.v1
-        |
-        v
-DocumentUploadedKafkaConsumer
-        |
-        v
-ObjectMapper
-        |
-        v
-DocumentUploadedEvent
-        |
-        v
-Application logs
-```
+### `document.uploaded.v1`
 
-The complete current flow is:
-
-1. The client sends a multipart file.
-2. `document-api` generates a unique storage key.
-3. The file is uploaded to Magalu Cloud Object Storage.
-4. A `Document` domain object is created.
-5. Metadata and the storage key are persisted in PostgreSQL.
-6. `document-api` publishes `DocumentUploaded` to Kafka.
-7. Kafka stores the event in `document.uploaded.v1`.
-8. `document-processor` consumes the event as part of the `document-processor` consumer group.
-9. The JSON payload is deserialized into `DocumentUploadedEvent`.
-10. The event data is written to the processor logs.
-
----
-
-## Kafka
-
-Apache Kafka is used for asynchronous communication between the microservices.
-
-### Current Topic
-
-```text
-document.uploaded.v1
-```
-
-The topic name includes a version suffix:
-
-```text
-.v1
-```
-
-This makes the event contract version explicit and allows future incompatible event versions to use a different topic or contract.
-
-### Producer
+Produced by:
 
 ```text
 document-api
 ```
 
-Publishes:
-
-```text
-DocumentUploaded
-```
-
-### Consumer
+Consumed by:
 
 ```text
 document-processor
 ```
 
-Consumes:
+Used when a document has been uploaded and is ready to be processed.
 
-```text
-DocumentUploaded
-```
+### `document.processed.v1`
 
-### Consumer Group
+Produced by:
 
 ```text
 document-processor
 ```
 
-Conceptually:
+Consumed by:
 
 ```text
-Topic: document.uploaded.v1
-            |
-            v
-Consumer Group: document-processor
-            |
-            v
-document-processor instance
+document-api
 ```
 
-Kafka stores offsets per consumer group. After the processor consumes a message, stops, and starts again, it can continue from the previously committed position instead of consuming every old message again.
+Used when the processor has completed text processing for a document.
 
 ---
 
 ## `DocumentUploaded` Event
 
-Example payload:
+Example:
 
 ```json
 {
   "eventId": "271e0a85-1b8b-4ac4-8597-1568eb7cee2f",
   "documentId": "8f6e110d-8083-4e50-88d7-3942c695d590",
-  "storageKey": "documents/2026/07/04/52c...-example.txt",
+  "storageKey": "documents/2026/07/16/example-file.txt",
   "contentType": "text/plain",
-  "size": 128
+  "size": 60
 }
 ```
 
@@ -348,210 +234,235 @@ Fields:
 
 | Field | Description |
 |---|---|
-| `eventId` | Unique identifier for the event |
+| `eventId` | Unique identifier of the event |
 | `documentId` | Identifier of the uploaded document |
 | `storageKey` | Object Storage key used to locate the file |
 | `contentType` | MIME type of the uploaded file |
-| `size` | File size in bytes |
+| `size` | Original file size in bytes |
 
-The Kafka message key is the document ID.
+Kafka message key:
 
 ```text
-KEY                                      VALUE
-
-8f6e110d-8083-4e50-88d7-3942c695d590 | {"eventId":"...", ...}
+documentId
 ```
-
-Using the document ID as the key prepares the system for future partitioning strategies where events related to the same document should preserve ordering.
 
 ---
 
-## Event Deserialization
+## `DocumentProcessed` Event
 
-The producer publishes JSON without Java type headers.
+Example:
 
-The processor receives the Kafka value as a string:
-
-```text
-Kafka
-  |
-  v
-StringDeserializer
-  |
-  v
-JSON String
-  |
-  v
-ObjectMapper
-  |
-  v
-DocumentUploadedEvent
+```json
+{
+  "eventId": "ce29e55a-bfe6-46d4-867c-2dac17cee35b",
+  "documentId": "389141ed-35d5-4d76-8062-5de14ab88dfa",
+  "characterCount": 60,
+  "wordCount": 9,
+  "lineCount": 2,
+  "processedAt": "2026-07-16T09:30:25.194Z"
+}
 ```
 
-This avoids coupling the consumer to the producer's Java package or class name.
+Fields:
 
-The services independently represent the same JSON event contract.
+| Field | Description |
+|---|---|
+| `eventId` | Unique identifier of the processed event |
+| `documentId` | Identifier of the processed document |
+| `characterCount` | Number of characters in the text |
+| `wordCount` | Number of words in the text |
+| `lineCount` | Number of lines in the text |
+| `processedAt` | Timestamp when processing completed |
+
+Kafka message key:
+
+```text
+documentId
+```
 
 ---
 
-## Project Structure
+## Why the Events Use `storageKey`
+
+Kafka events do not carry file bytes. Instead, the upload event carries the `storageKey`.
+
+The file itself is stored in Object Storage.
 
 ```text
-document-platform
-├── README.md
-├── docker-compose.yml
-├── .env.example
-├── .gitignore
-│
-├── document-api
-│   ├── Dockerfile
-│   ├── build.gradle
-│   ├── settings.gradle
-│   ├── gradlew
-│   ├── gradle
-│   └── src
-│       └── main
-│           ├── java
-│           │   └── io/lossantis/documentapi
-│           │       ├── DocumentApiApplication.java
-│           │       └── document
-│           │           ├── application
-│           │           ├── domain
-│           │           ├── infrastructure
-│           │           │   ├── messaging
-│           │           │   ├── persistence
-│           │           │   └── storage
-│           │           └── presentation
-│           └── resources
-│               ├── application.properties
-│               └── db/migration
-│
-└── document-processor
-    ├── Dockerfile
-    ├── build.gradle
-    ├── settings.gradle
-    ├── gradlew
-    ├── gradle
-    └── src
-        └── main
-            ├── java
-            │   └── io/lossantis/documentprocessor
-            │       ├── DocumentProcessorApplication.java
-            │       └── document
-            │           └── infrastructure
-            │               └── messaging
-            │                   ├── DocumentUploadedEvent.java
-            │                   └── DocumentUploadedKafkaConsumer.java
-            └── resources
-                └── application.properties
+Good:
+DocumentUploaded { documentId, storageKey }
+
+Bad:
+DocumentUploaded { documentId, full file bytes }
 ```
 
-> Package paths may evolve as the project grows, but the architectural responsibilities remain the same.
+The processor uses the `storageKey` to download the original file only when needed.
 
 ---
 
-## `document-api` Architecture
+## Service Boundaries
 
-The `document-api` follows a DDD/Clean Architecture-inspired package structure.
+### `document-api`
 
-### Presentation
-
-Contains HTTP controllers.
-
-Main responsibility:
+Owns:
 
 ```text
-HTTP request -> application command -> use case -> HTTP response
+documents table
+document metadata
+document status
+HTTP upload endpoint
+DocumentUploaded publishing
+DocumentProcessed consumption
 ```
 
-Current endpoint:
+Does not own:
 
 ```text
-POST /documents/upload
+text processing logic
 ```
 
-### Application
+### `document-processor`
 
-Contains use cases and application ports.
-
-Responsibilities:
-
-- Orchestrate the upload flow
-- Send file content to the storage port
-- Create the domain object
-- Persist document metadata
-- Publish the upload event
-- Return the upload result
-
-The application layer depends on abstractions instead of infrastructure implementations.
-
-### Domain
-
-Main concepts:
+Owns:
 
 ```text
-Document
-DocumentStatus
-DocumentRepository
+document processing logic
+DocumentUploaded consumption
+DocumentProcessed publishing
 ```
 
-The domain does not depend on:
+Does not own:
 
 ```text
-Spring
-JPA
+documents table
 PostgreSQL
-Docker
-Flyway
-AWS SDK
-Magalu Cloud
-Kafka
+HTTP upload endpoint
 ```
 
-### Infrastructure
-
-Current responsibilities:
-
-- PostgreSQL persistence
-- Spring Data JPA integration
-- Domain/persistence mapping
-- S3-compatible Object Storage configuration
-- Magalu Cloud Object Storage upload
-- Kafka event publishing
+This separation keeps both services independently deployable.
 
 ---
 
-## `document-processor` Architecture
+## `document-api` Structure
 
-The processor is intentionally simple in the current phase.
+Simplified structure:
+
+```text
+document-api
+└── src/main/java/io/lossantis/documentapi
+    ├── DocumentApiApplication.java
+    ├── config
+    │   └── JacksonConfig.java
+    └── document
+        ├── application
+        │   ├── processing
+        │   │   ├── MarkDocumentAsProcessedCommand.java
+        │   │   └── MarkDocumentAsProcessedUseCase.java
+        │   └── upload
+        │       └── ...
+        ├── domain
+        │   ├── model
+        │   │   ├── Document.java
+        │   │   └── DocumentStatus.java
+        │   └── repository
+        │       └── DocumentRepository.java
+        ├── infrastructure
+        │   ├── messaging
+        │   │   ├── DocumentUploadedEvent.java
+        │   │   ├── KafkaDocumentUploadedPublisher.java
+        │   │   ├── DocumentProcessedEvent.java
+        │   │   └── DocumentProcessedKafkaConsumer.java
+        │   ├── persistence
+        │   │   ├── DocumentJpaEntity.java
+        │   │   ├── JpaDocumentRepositoryAdapter.java
+        │   │   └── SpringDataDocumentRepository.java
+        │   └── storage
+        │       ├── MagaluDocumentStorage.java
+        │       ├── MagaluObjectStorageConfig.java
+        │       └── MagaluObjectStorageProperties.java
+        └── presentation
+            └── DocumentController.java
+```
+
+The important direction is:
+
+```text
+presentation -> application -> domain
+infrastructure -> application/domain
+```
+
+---
+
+## `document-processor` Structure
+
+Simplified structure:
 
 ```text
 document-processor
-    |
-    v
-infrastructure
-    |
-    v
-messaging
-    ├── DocumentUploadedEvent
-    └── DocumentUploadedKafkaConsumer
+└── src/main/java/io/lossantis/documentprocessor
+    ├── DocumentProcessorApplication.java
+    ├── config
+    │   └── JacksonConfig.java
+    └── document
+        ├── application
+        │   ├── ProcessDocumentCommand.java
+        │   ├── ProcessDocumentUseCase.java
+        │   ├── messaging
+        │   │   └── DocumentProcessedPublisher.java
+        │   └── storage
+        │       └── DocumentStorage.java
+        ├── domain
+        │   ├── ProcessedText.java
+        │   └── TextDocumentProcessor.java
+        └── infrastructure
+            ├── messaging
+            │   ├── DocumentUploadedEvent.java
+            │   ├── DocumentUploadedKafkaConsumer.java
+            │   ├── DocumentProcessedEvent.java
+            │   └── KafkaDocumentProcessedPublisher.java
+            └── storage
+                ├── MagaluDocumentStorage.java
+                ├── MagaluObjectStorageConfig.java
+                └── MagaluObjectStorageProperties.java
 ```
 
-There is no application or domain layer yet because the processor currently has no processing business rule.
-
-At this stage, it only:
+The processor has two Kafka adapters:
 
 ```text
-receive
-  |
-  v
-deserialize
-  |
-  v
-log
+input:  DocumentUploadedKafkaConsumer
+output: KafkaDocumentProcessedPublisher
 ```
 
-The application and domain layers will be introduced when real processing behavior is added.
+---
+
+## Domain Processing
+
+The processor currently handles `.txt` files.
+
+`TextDocumentProcessor` receives a text string and returns `ProcessedText`.
+
+`ProcessedText` contains:
+
+```text
+characterCount
+wordCount
+lineCount
+```
+
+Example input:
+
+```text
+Kafka makes services independent
+This document has two lines
+```
+
+Expected result:
+
+```text
+characterCount: 60
+wordCount: 9
+lineCount: 2
+```
 
 ---
 
@@ -559,81 +470,29 @@ The application and domain layers will be introduced when real processing behavi
 
 The project uses Magalu Cloud Object Storage through its S3-compatible API.
 
-The Java application uses:
+Both services use the AWS SDK for Java 2.x.
 
-```text
-AWS SDK for Java 2.x
-software.amazon.awssdk:s3
-```
+### `document-api`
 
-The S3 client is configured with:
+Uses Object Storage to upload the original file.
 
-- Magalu Cloud Object Storage endpoint
-- Region
-- Access key
-- Secret key
-- Path-style access
+### `document-processor`
+
+Uses Object Storage to download the original file by `storageKey`.
 
 ### Storage Key Format
 
 Example:
 
 ```text
-documents/2026/07/04/b14adc8f-34bd-4b8a-928d-f8c4df8f8b85-example.txt
+documents/2026/07/16/af8757ad-bfe4-4506-8181-63388a8dd04c-processed-event-test.txt
 ```
 
-Format:
+General format:
 
 ```text
 documents/YYYY/MM/DD/UUID-original-filename
 ```
-
-This avoids filename collisions and organizes objects by date.
-
-### Access Model
-
-Objects are stored privately.
-
-Bucket permissions are managed outside the application as infrastructure configuration.
-
-The application does not change bucket ACLs or bucket policies at startup.
-
-For private files, temporary access can be granted with a presigned URL:
-
-```bash
-mgc object-storage objects presign \
-  --dst="document-platform/YOUR_STORAGE_KEY"
-```
-
----
-
-## Database
-
-PostgreSQL runs locally through Docker Compose.
-
-The `documents` table is managed by Flyway migrations.
-
-Current metadata includes:
-
-```text
-id
-original_filename
-content_type
-size
-status
-storage_key
-created_at
-```
-
-Flyway also manages:
-
-```text
-flyway_schema_history
-```
-
-Only `document-api` accesses this database.
-
-The `document-processor` does not connect to PostgreSQL.
 
 ---
 
@@ -655,72 +514,99 @@ MAGALU_OBJECT_STORAGE_ACCESS_KEY=your-access-key
 MAGALU_OBJECT_STORAGE_SECRET_KEY=your-secret-key
 ```
 
-The `.env` file must never be committed.
+The `.env` file must not be committed.
 
-The repository should contain only `.env.example` with placeholder values.
+Keep only:
+
+```text
+.env.example
+```
+
+in the repository.
 
 ---
 
-## Security
+## Jackson and Java Time
 
-Do not commit real cloud credentials.
-
-Keep the following file ignored:
+The project uses `Instant` in events such as:
 
 ```text
-.env
+processedAt
 ```
 
-Cloud access keys and secret keys must be treated as credentials.
+Jackson requires the Java Time module to serialize and deserialize Java time classes.
 
-If a credential is exposed publicly or committed to Git history, revoke it and create a new one.
+Both services should include:
 
-Objects in the bucket remain private by default.
+```groovy
+implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+```
 
-The application does not automatically make the bucket or uploaded objects public.
+and register:
+
+```java
+new JavaTimeModule()
+```
+
+This allows JSON like:
+
+```json
+{
+  "processedAt": "2026-07-16T09:30:25.194Z"
+}
+```
+
+instead of failing with:
+
+```text
+Java 8 date/time type `java.time.Instant` not supported by default
+```
 
 ---
 
-## Docker Compose
+## Kafka Serialization
 
-The local environment contains:
+The project disables Java type headers for JSON events:
 
-```text
-Docker Compose
-├── document-api
-├── document-processor
-├── Kafka
-└── PostgreSQL
+```properties
+spring.kafka.producer.properties[spring.json.add.type.headers]=false
 ```
 
-External cloud dependency:
+This keeps services decoupled from each other's Java class names.
 
-```text
-Magalu Cloud
-└── Object Storage
+The contract between services is JSON, not a shared Java class.
+
+---
+
+## Test Configuration
+
+The test context should not start real Kafka listeners.
+
+For `document-api` tests, use:
+
+```properties
+spring.kafka.listener.auto-startup=false
 ```
 
-Communication inside Docker:
+in:
 
 ```text
-document-api       --> kafka:9092
-document-processor --> kafka:9092
-document-api       --> postgres:5432
+document-api/src/test/resources/application.properties
 ```
 
-The processor has no database connection.
+This prevents `contextLoads()` from trying to connect to Docker hostname:
+
+```text
+kafka:9092
+```
+
+when tests are running locally outside Docker.
 
 ---
 
 ## How to Run
 
 From the project root:
-
-```bash
-docker compose up --build
-```
-
-Run in detached mode:
 
 ```bash
 docker compose up --build -d
@@ -741,25 +627,17 @@ document-kafka
 document-api-postgres
 ```
 
-Check API logs:
+Follow logs:
 
 ```bash
-docker compose logs -f document-api
+docker logs -f document-api
 ```
-
-Check processor logs:
 
 ```bash
-docker compose logs -f document-processor
+docker logs -f document-processor
 ```
 
-Stop the environment:
-
-```bash
-docker compose down
-```
-
-Stop and remove orphan containers:
+Stop everything:
 
 ```bash
 docker compose down --remove-orphans
@@ -767,7 +645,7 @@ docker compose down --remove-orphans
 
 ---
 
-## Build Individual Services
+## Build Services
 
 Build `document-api`:
 
@@ -783,76 +661,58 @@ cd document-processor
 ./gradlew clean build
 ```
 
----
-
-## Test the Complete Current Flow
-
-Create a text file:
+If you only want to validate compilation while working around a temporary test setup issue:
 
 ```bash
-echo "Hello from document processor" > test-processor.txt
+./gradlew clean build -x test
+```
+
+---
+
+## Test the Full Flow
+
+Create a file:
+
+```bash
+printf "Closing the loop\nDocument API will update PostgreSQL" > phase-6-5.txt
 ```
 
 Upload it:
 
 ```bash
 curl -X POST http://localhost:8080/documents/upload \
-  -F "file=@test-processor.txt"
+  -F "file=@phase-6-5.txt"
 ```
 
-A successful request confirms that `document-api`:
+Initial response:
 
-1. Received the file.
-2. Uploaded it to Object Storage.
-3. Generated a storage key.
-4. Saved metadata in PostgreSQL.
-5. Published `DocumentUploaded` to Kafka.
-
-Follow the processor logs:
-
-```bash
-docker compose logs -f document-processor
+```json
+{
+  "id": "generated-document-id",
+  "originalFilename": "phase-6-5.txt",
+  "contentType": "text/plain",
+  "size": 52,
+  "status": "UPLOADED",
+  "storageKey": "documents/2026/07/16/generated-key-phase-6-5.txt",
+  "createdAt": "2026-07-16T..."
+}
 ```
 
-Expected output:
+The initial status is expected to be:
 
 ```text
-========================================
-DocumentUploaded received
-eventId:     ...
-documentId:  ...
-storageKey:  documents/2026/07/04/...-test-processor.txt
-contentType: text/plain
-size:        ...
-========================================
+UPLOADED
 ```
 
-This confirms the current end-to-end asynchronous flow:
+Processing is asynchronous.
 
-```text
-HTTP upload
-    |
-    v
-document-api
-    |
-    v
-Object Storage + PostgreSQL
-    |
-    v
-Kafka
-    |
-    v
-document-processor
-    |
-    v
-log
-```
+After the processor publishes `DocumentProcessed`, the API consumes the event and updates PostgreSQL.
 
 ---
 
-## Inspect Kafka Messages
+## Inspect Kafka Topics
 
-Consume the topic from the beginning:
+Consume uploaded events:
 
 ```bash
 docker exec -it document-kafka \
@@ -864,10 +724,22 @@ docker exec -it document-kafka \
   --property key.separator=" | "
 ```
 
-Expected format:
+Consume processed events:
+
+```bash
+docker exec -it document-kafka \
+  /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server kafka:9092 \
+  --topic document.processed.v1 \
+  --from-beginning \
+  --property print.key=true \
+  --property key.separator=" | "
+```
+
+Expected processed message:
 
 ```text
-document-id | {"eventId":"...","documentId":"...","storageKey":"...","contentType":"text/plain","size":...}
+<documentId> | {"eventId":"...","documentId":"...","characterCount":60,"wordCount":9,"lineCount":2,"processedAt":"..."}
 ```
 
 ---
@@ -883,13 +755,14 @@ docker exec -it document-kafka \
   --list
 ```
 
-Expected group:
+Expected groups:
 
 ```text
 document-processor
+document-api
 ```
 
-Describe the processor consumer group:
+Describe the processor group:
 
 ```bash
 docker exec -it document-kafka \
@@ -899,161 +772,80 @@ docker exec -it document-kafka \
   --group document-processor
 ```
 
-Example output:
+Describe the API group:
 
-```text
-GROUP               TOPIC                  PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG
-document-processor  document.uploaded.v1   0          5               5               0
+```bash
+docker exec -it document-kafka \
+  /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server kafka:9092 \
+  --describe \
+  --group document-api
 ```
 
-Meaning:
+Important columns:
 
-| Column | Description |
+| Column | Meaning |
 |---|---|
-| `CURRENT-OFFSET` | Position already consumed by the group |
-| `LOG-END-OFFSET` | Latest available position in the partition |
-| `LAG` | Number of messages still waiting to be consumed |
+| `CURRENT-OFFSET` | Last consumed offset for the group |
+| `LOG-END-OFFSET` | Latest available offset in the topic |
+| `LAG` | Number of pending messages |
 
-When `LAG = 0`, the consumer group is caught up.
+When:
+
+```text
+LAG = 0
+```
+
+the consumer group is caught up.
 
 ---
 
-## Kafka Offset Behavior
+## Inspect PostgreSQL
 
-The processor uses:
-
-```properties
-spring.kafka.consumer.auto-offset-reset=earliest
-```
-
-For a new consumer group:
-
-```text
-group has no committed offset
-        |
-        v
-earliest
-        |
-        v
-consume from the oldest available message
-```
-
-After offsets have been committed:
-
-```text
-processor stops
-        |
-        v
-processor starts again
-        |
-        v
-Kafka restores the group's position
-        |
-        v
-processing continues from the stored offset
-```
-
-The processor does not restart from the beginning every time.
-
----
-
-## Access PostgreSQL
-
-Enter the PostgreSQL container:
+Enter the database:
 
 ```bash
 docker exec -it document-api-postgres \
   psql -U postgres -d documentdb
 ```
 
-List tables:
-
-```sql
-\dt
-```
-
-Query documents:
+List recent documents:
 
 ```sql
 SELECT
     id,
     original_filename,
-    content_type,
-    size,
     status,
     storage_key,
     created_at
-FROM documents;
+FROM documents
+ORDER BY created_at DESC
+LIMIT 5;
 ```
 
-Check Flyway migrations:
+For a specific document:
 
 ```sql
-SELECT *
-FROM flyway_schema_history;
+SELECT
+    id,
+    original_filename,
+    status,
+    storage_key,
+    created_at
+FROM documents
+WHERE id = 'PASTE_DOCUMENT_ID_HERE';
 ```
 
-Exit:
+Expected final status after the async flow completes:
 
 ```text
+PROCESSED
+```
+
+Exit PostgreSQL:
+
+```sql
 \q
-```
-
----
-
-## Verify Objects in Magalu Cloud
-
-List the bucket root:
-
-```bash
-mgc object-storage objects list document-platform
-```
-
-Because Object Storage uses prefixes, the result may show:
-
-```text
-CommonPrefixes:
-- Path: documents/
-Contents: []
-```
-
-This does not mean the bucket is empty.
-
-List a deeper path:
-
-```bash
-mgc object-storage objects list document-platform/documents/2026/07/04
-```
-
-Generate a temporary URL for a private object:
-
-```bash
-mgc object-storage objects presign \
-  --dst="document-platform/YOUR_STORAGE_KEY"
-```
-
----
-
-## About `localhost:8080`
-
-Opening:
-
-```text
-http://localhost:8080
-```
-
-returns:
-
-```text
-404 Not Found
-```
-
-This is expected because there is no endpoint mapped to `/`.
-
-The currently available endpoint is:
-
-```text
-POST /documents/upload
 ```
 
 ---
@@ -1105,9 +897,8 @@ POST /documents/upload
 [✓] Kafka added to Docker Compose
 [✓] DocumentUploaded event
 [✓] document.uploaded.v1 topic
-[✓] Kafka producer
+[✓] Kafka producer in document-api
 [✓] document ID used as message key
-[✓] Event published after upload flow
 ```
 
 ### Phase 6.1 — First Kafka Consumer
@@ -1116,218 +907,208 @@ POST /documents/upload
 [✓] document-processor microservice
 [✓] Independent Gradle project
 [✓] Independent Docker container
-[✓] Kafka connection
-[✓] document-processor consumer group
+[✓] Consumer group document-processor
 [✓] Consume document.uploaded.v1
-[✓] Receive message as JSON string
-[✓] Deserialize into DocumentUploadedEvent
-[✓] Log documentId and storageKey
+[✓] Deserialize DocumentUploaded
+```
+
+### Phase 6.2 — Download From Object Storage
+
+```text
+[✓] Processor receives storageKey
+[✓] Processor downloads file from Object Storage
+[✓] Processor reads .txt as UTF-8
+[✓] Processor remains independent from PostgreSQL
+```
+
+### Phase 6.3 — Text Processing
+
+```text
+[✓] TextDocumentProcessor
+[✓] ProcessedText
+[✓] characterCount
+[✓] wordCount
+[✓] lineCount
+```
+
+### Phase 6.4 — Publish DocumentProcessed
+
+```text
+[✓] DocumentProcessedEvent
+[✓] DocumentProcessedPublisher port
+[✓] KafkaDocumentProcessedPublisher adapter
+[✓] document.processed.v1 topic
+[✓] Processor becomes consumer + producer
+```
+
+### Phase 6.5 — Consume DocumentProcessed and Update PostgreSQL
+
+```text
+[✓] DocumentProcessedKafkaConsumer in document-api
+[✓] MarkDocumentAsProcessedCommand
+[✓] MarkDocumentAsProcessedUseCase
+[✓] Document.markAsProcessed()
+[✓] DocumentRepository.findById()
+[✓] PostgreSQL status update to PROCESSED
 ```
 
 ---
 
-## Next Phase
+## Important Architectural Concepts Learned
 
-The next step is to make `document-processor` use the event's `storageKey` to download the uploaded `.txt` file from Magalu Cloud Object Storage.
+### Kafka Consumer
 
-Target flow:
+The processor consumes events from:
 
 ```text
 document.uploaded.v1
-        |
-        v
-DocumentUploadedKafkaConsumer
-        |
-        v
-ProcessDocumentUseCase
-        |
-        v
-DocumentStorage.download(storageKey)
-        |
-        v
-Magalu Cloud Object Storage
-        |
-        v
-.txt content
 ```
 
-The next implementation should introduce:
+### Consumer Groups
+
+The processor uses:
 
 ```text
-application
-├── ProcessDocumentUseCase
-└── storage
-    └── DocumentStorage
-
-infrastructure
-├── messaging
-│   └── DocumentUploadedKafkaConsumer
-└── storage
-    └── MagaluDocumentStorage
+document-processor
 ```
 
-After that, the project will evolve toward:
+The API uses:
 
 ```text
-download .txt
-    |
-    v
-process text
-    |
-    v
-publish DocumentProcessed
-    |
-    v
-document.processed.v1
-    |
-    v
-document-api consumes result
-    |
-    v
-update PostgreSQL
+document-api
+```
+
+Each service has its own independent Kafka offset tracking.
+
+### Event-Driven Communication
+
+Services communicate by events, not by direct HTTP calls.
+
+### Eventual Consistency
+
+Immediately after upload:
+
+```text
+status = UPLOADED
+```
+
+After asynchronous processing finishes:
+
+```text
+status = PROCESSED
+```
+
+There is a small delay between these states. That is expected.
+
+### Service Independence
+
+The processor does not access the API database.
+
+The API does not execute processing logic.
+
+### Ports and Adapters
+
+Examples:
+
+```text
+DocumentStorage -> MagaluDocumentStorage
+DocumentProcessedPublisher -> KafkaDocumentProcessedPublisher
+DocumentRepository -> JpaDocumentRepositoryAdapter
 ```
 
 ---
 
-## Planned Evolution
+## Next Steps
+
+The next logical step is **idempotency**.
+
+Now that the full async cycle exists, we need to answer:
 
 ```text
-Phase 6.2
-├── Connect document-processor to Object Storage
-├── Download document by storageKey
-└── Read .txt content
+What happens if the same DocumentProcessed event is delivered twice?
+```
 
-Phase 6.3
-├── Process text
-├── Count characters
-├── Count words
-└── Count lines
+Possible improvements:
 
-Phase 6.4
-├── Create DocumentProcessed event
-└── Publish document.processed.v1
+```text
+Phase 7
+├── Idempotency for DocumentProcessed consumption
+├── Ignore already PROCESSED documents
+├── Better status transition rules
+└── Safe repeated event handling
 
-Phase 6.5
-├── document-api consumes DocumentProcessed
-└── Update document status in PostgreSQL
-
-Later
-├── Idempotency
+Phase 8
 ├── Retry strategy
+├── Backoff
+└── transient error handling
+
+Phase 9
 ├── Dead-letter topic
-├── Eventual consistency analysis
+└── failed event investigation
+
+Phase 10
 ├── Outbox pattern
-├── Observability
-├── Automated tests
-├── CI/CD
-└── Deployment to separate Magalu Cloud VMs
+└── reliable event publishing from document-api
 ```
 
 ---
 
-## Technology Stack
+## Notes
+
+Opening:
 
 ```text
-Java 25
-Spring Boot 4.1
-Spring Kafka
-Apache Kafka 4.1
-Spring Web
-Spring Data JPA
-PostgreSQL 16
-Flyway
-AWS SDK for Java 2.x
-Magalu Cloud Object Storage
-Docker
-Docker Compose
-Gradle 9
+http://localhost:8080
 ```
+
+returns `404 Not Found`.
+
+This is expected because the API currently exposes:
+
+```text
+POST /documents/upload
+```
+
+and does not define a root `/` endpoint.
 
 ---
 
-## Local vs Target Architecture
+## Summary
 
-Current environment:
-
-```text
-Developer Machine
-└── Docker Compose
-    ├── document-api
-    ├── document-processor
-    ├── Kafka
-    └── PostgreSQL
-
-Magalu Cloud
-└── Object Storage
-```
-
-Target deployment architecture:
+The project now demonstrates a complete event-driven document processing cycle:
 
 ```text
-Magalu Cloud
-
-VM document-api
-└── Docker
-    └── document-api
-
-VM document-processor
-└── Docker
-    └── document-processor
-
-PostgreSQL
-
-Object Storage
-
+upload
+  |
+  v
+metadata persistence
+  |
+  v
+object storage
+  |
+  v
+DocumentUploaded
+  |
+  v
 Kafka
+  |
+  v
+processor
+  |
+  v
+text analysis
+  |
+  v
+DocumentProcessed
+  |
+  v
+Kafka
+  |
+  v
+API consumer
+  |
+  v
+PostgreSQL status update
 ```
 
-The same event-driven service boundaries used locally are intended to support independent deployment later.
-
----
-
-## Learning Goals
-
-This project is intentionally developed in small phases.
-
-Rather than introducing every distributed-systems pattern at once, each new problem is introduced when the architecture makes it relevant.
-
-Current progression:
-
-```text
-File upload
-    |
-    v
-Persistence
-    |
-    v
-Object Storage
-    |
-    v
-Kafka producer
-    |
-    v
-Kafka consumer
-    |
-    v
-Consumer groups
-    |
-    v
-Event-driven processing
-    |
-    v
-Eventual consistency
-    |
-    v
-Idempotency
-    |
-    v
-Retry
-    |
-    v
-Dead-letter topic
-    |
-    v
-Outbox pattern
-```
-
-The goal is not only to build a working platform, but to understand why each architectural pattern becomes necessary.
+This is the foundation for learning production-grade distributed systems patterns such as idempotency, retry, dead-letter topics, eventual consistency, and the outbox pattern.

@@ -30,6 +30,9 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
 
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
     implementation platform('software.amazon.awssdk:bom:2.30.31')
     implementation 'software.amazon.awssdk:s3'
 
@@ -44,6 +47,7 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'com.h2database:h2'
 }
 
 tasks.named('test') {
